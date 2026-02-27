@@ -25,27 +25,21 @@ jobs:
       - name: 🔨 Build TypeScript to JavaScript
         run: npm run build
 
-      - name: 📁 Prepare deployment package
-        run: |
-          mkdir -p deploy
-          cp -r dist deploy/
-          cp -r src deploy/
-          cp package.json deploy/
-          cp package-lock.json deploy/
-          cp ecosystem.config.json deploy/
-          cp start.sh deploy/
-          cp stop.sh deploy/
-          cp tsconfig.json deploy/
-          echo "✅ Deployment package created"
-
-      - name: 🚀 Upload to server via FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+      - name: Upload to server via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.6
         with:
           server: ${{ secrets.FTP_HOST }}
           username: ${{ secrets.FTP_USER }}
           password: ${{ secrets.FTP_PASS }}
-          local-dir: ./deploy/
+          local-dir: ./
           server-dir: ./
           exclude: |
             **/.git*
             **/node_modules/**
+            **/test/**
+            .github/**
+            nest-cli.json
+            tsconfig.build.json
+            README.md
+            .prettierrc
+            eslint.config.mjs
