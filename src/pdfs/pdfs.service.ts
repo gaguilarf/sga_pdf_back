@@ -1,42 +1,43 @@
 import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { AudioPointersService } from '../audio-pointers/audio-pointers.service';
+import { Pdf, PdfLevel } from './entities/pdf.entity';
 
 @Injectable()
 export class PdfsService {
-  // Point to the backend's own public/recursos directory
   private readonly uploadDir = path.resolve(__dirname, '..', '..', 'public', 'recursos');
+  private readonly thumbnailDir = path.join(this.uploadDir, 'thumbnails');
 
-  constructor(private readonly audioPointersService: AudioPointersService) {}
+  constructor(
+    @InjectRepository(Pdf)
+    private pdfRepository: Repository<Pdf>,
+    private readonly audioPointersService: AudioPointersService
+  ) {}
 
   async onModuleInit() {
     try {
       await fs.mkdir(this.uploadDir, { recursive: true });
+      await fs.mkdir(this.thumbnailDir, { recursive: true });
     } catch (error) {
-      console.error('Failed to create upload directory:', error);
+      console.error('Failed to create directories:', error);
     }
   }
 
   async listPdfs() {
     try {
-      await this.onModuleInit(); // Ensure dir exists
-      const files = await fs.readdir(this.uploadDir);
-      
-      const pdfs = files
-        .filter((file) => file.toLowerCase().endsWith('.pdf'))
-        .map((file) => ({
-          name: file,
-          url: `/recursos/${file}`, // The frontend serves this via its public folder
-        }));
-        
+      const pdfs = await this.pdfRepository.find({
+        order: { createdAt: 'DESC' }
+      });
       return { pdfs };
     } catch (error) {
       throw new HttpException('Failed to list PDFs', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
-  async savePdf(file: Express.Multer.File) {
+  async savePdf(file: Express.Multer.File, thumbnail: Express.Multer.File | undefined, title: string, level: PdfLevel) {
     if (!file) {
       throw new HttpException('No file uploaded', HttpStatus.BAD_REQUEST);
     }
@@ -47,36 +48,71 @@ export class PdfsService {
 
     try {
       await this.onModuleInit();
-      const sanitizedFileName = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+      const sanitizedFileName = `${Date.now()}_${file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_')}`;
       const filePath = path.join(this.uploadDir, sanitizedFileName);
       
       await fs.writeFile(filePath, file.buffer);
+
+      let thumbnailUrl: string | undefined = undefined;
+      if (thumbnail) {
+        const thumbFileName = `${Date.now()}_thumb_${thumbnail.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_')}`;
+        const thumbPath = path.join(this.thumbnailDir, thumbFileName);
+        await fs.writeFile(thumbPath, thumbnail.buffer);
+        thumbnailUrl = `/recursos/thumbnails/${thumbFileName}`;
+      }
       
+      const newPdf = this.pdfRepository.create({
+        title: title || file.originalname,
+        filename: sanitizedFileName,
+        level: level || PdfLevel.BEGINNER,
+        thumbnailUrl: thumbnailUrl ?? undefined,
+      });
+
+      const savedPdf = await this.pdfRepository.save(newPdf);
+
+      // Return consistent URL for the PDF
       return {
         success: true,
-         file: {
-          name: sanitizedFileName,
-          url: `/recursos/${sanitizedFileName}`,
+        file: {
+          ...savedPdf,
+          url: `/recursos/${sanitizedFileName}`
         }
       };
     } catch (error) {
+      console.error('Save PDF Error:', error);
       throw new HttpException('Failed to save PDF', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
-  async deletePdf(filename: string) {
+  async deletePdf(id: string) {
     try {
-      // 1. Delete physical file
-      const filePath = path.join(this.uploadDir, filename);
+      const pdf = await this.pdfRepository.findOne({ where: { id } });
+      if (!pdf) {
+        throw new HttpException('PDF not found', HttpStatus.NOT_FOUND);
+      }
+
+      // 1. Delete physical files
+      const filePath = path.join(this.uploadDir, pdf.filename);
       try {
-        await fs.access(filePath);
         await fs.unlink(filePath);
       } catch (err) {
-        throw new HttpException('File not found', HttpStatus.NOT_FOUND);
+        console.warn('Physical PDF file not found during deletion');
+      }
+
+      if (pdf.thumbnailUrl) {
+        const thumbPath = path.join(this.uploadDir, '..', pdf.thumbnailUrl);
+        try {
+          await fs.unlink(thumbPath);
+        } catch (err) {
+          console.warn('Physical thumbnail file not found during deletion');
+        }
       }
       
       // 2. Cascade delete audio pointers
-      await this.audioPointersService.deletePointersForPdf(filename);
+      await this.audioPointersService.deletePointersForPdf(pdf.filename);
+
+      // 3. Delete from database
+      await this.pdfRepository.delete(id);
 
       return { success: true };
     } catch (error) {

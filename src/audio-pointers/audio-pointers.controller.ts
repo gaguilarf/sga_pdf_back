@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Param, Body, HttpException, HttpStatus, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { AudioPointersService, AudioPointer } from './audio-pointers.service';
+import { AudioPointersService } from './audio-pointers.service';
+import { AudioPointer } from './entities/audio-pointer.entity';
 
 @Controller('audio-pointers')
 export class AudioPointersController {

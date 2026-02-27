@@ -1,6 +1,7 @@
-import { Controller, Get, Post, UploadedFile, UseInterceptors, HttpException, HttpStatus, Delete, Param } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { Controller, Get, Post, UploadedFiles, UseInterceptors, HttpException, HttpStatus, Delete, Param, Body } from '@nestjs/common';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { PdfsService } from './pdfs.service';
+import { PdfLevel } from './entities/pdf.entity';
 
 @Controller('pdfs')
 export class PdfsController {
@@ -12,16 +13,27 @@ export class PdfsController {
   }
 
   @Post('upload')
-  @UseInterceptors(FileInterceptor('file'))
-  async uploadPdf(@UploadedFile() file: Express.Multer.File) {
-    if (!file) {
-      throw new HttpException('No file provided', HttpStatus.BAD_REQUEST);
+  @UseInterceptors(FileFieldsInterceptor([
+    { name: 'file', maxCount: 1 },
+    { name: 'thumbnail', maxCount: 1 },
+  ]))
+  async uploadPdf(
+    @UploadedFiles() files: { file?: Express.Multer.File[], thumbnail?: Express.Multer.File[] },
+    @Body('title') title: string,
+    @Body('level') level: PdfLevel
+  ) {
+    const pdfFile = files.file?.[0];
+    const thumbFile = files.thumbnail?.[0];
+    
+    if (!pdfFile) {
+      throw new HttpException('No PDF file provided', HttpStatus.BAD_REQUEST);
     }
-    return this.pdfsService.savePdf(file);
+    
+    return this.pdfsService.savePdf(pdfFile, thumbFile, title, level);
   }
 
-  @Delete(':filename')
-  async deletePdf(@Param('filename') filename: string) {
-    return this.pdfsService.deletePdf(filename);
+  @Delete(':id')
+  async deletePdf(@Param('id') id: string) {
+    return this.pdfsService.deletePdf(id);
   }
 }
