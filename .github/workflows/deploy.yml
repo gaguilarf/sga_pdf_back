@@ -32,7 +32,7 @@ jobs:
           username: ${{ secrets.FTP_USER }}
           password: ${{ secrets.FTP_PASS }}
           local-dir: ./
-          server-dir: ./
+          server-dir: /
           exclude: |
             **/.git*
             **/node_modules/**
@@ -43,3 +43,5 @@ jobs:
             README.md
             .prettierrc
             eslint.config.mjs
+            .env
+            .env.*
