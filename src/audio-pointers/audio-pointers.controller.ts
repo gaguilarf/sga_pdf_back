@@ -3,6 +3,9 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { AudioPointersService } from './audio-pointers.service';
 import { AudioPointer } from './entities/audio-pointer.entity';
 
+import { ApiTags } from '@nestjs/swagger';
+
+@ApiTags('audio-pointers')
 @Controller('audio-pointers')
 export class AudioPointersController {
   constructor(private readonly audioPointersService: AudioPointersService) {}

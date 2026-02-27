@@ -3,6 +3,9 @@ import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { PdfsService } from './pdfs.service';
 import { PdfLevel } from './entities/pdf.entity';
 
+import { ApiTags } from '@nestjs/swagger';
+
+@ApiTags('pdfs')
 @Controller('pdfs')
 export class PdfsController {
   constructor(private readonly pdfsService: PdfsService) {}
