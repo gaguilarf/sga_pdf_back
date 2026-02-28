@@ -1,19 +1,20 @@
 #!/bin/bash
 
-# 1. Activate Node Virtual Environment (Banahost/cPanel)
-source /home/payxiohs/nodevenv/api2.brittanygroup.edu.pe/20/bin/activate && cd /home/payxiohs/api2.brittanygroup.edu.pe
+# SGA PDF Backend - Start Script
+# This script starts the NestJS backend in production mode
 
 echo "🚀 Starting SGA PDF Backend..."
 
 # Check if .env file exists
 if [ ! -f .env ]; then
     echo "⚠️  .env file not found. Ensuring base configuration..."
+    # If no .env exists, we might need a template, but for now we rely on ecosystem/defaults
 fi
 
 # Check if node_modules exists
 if [ ! -d "node_modules" ]; then
-    echo "📦 Installing ALL dependencies (including dev for building)..."
-    npm install --legacy-peer-deps
+    echo "📦 Installing dependencies..."
+    npm ci --omit=dev --legacy-peer-deps
 fi
 
 # Check if dist folder exists
@@ -29,5 +30,5 @@ then
     pm2 start ecosystem.config.json
 else
     echo "✅ Starting with Node..."
-    npm run start:prod
+    NODE_ENV=production PORT=3003 node dist/main.js
 fi
