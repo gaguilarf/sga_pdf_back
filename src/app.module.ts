@@ -26,7 +26,7 @@ import { Pdf } from './pdfs/entities/pdf.entity';
         password: configService.get<string>('DB_PASS', 'brittanyDev512'),
         database: configService.get<string>('DB_NAME', 'payxiohs_ebook_brittany'),
         entities: [AudioPointer, Pdf],
-        synchronize: configService.get<string>('NODE_ENV') !== 'production',
+        synchronize: true, // Habilitado temporalmente para crear tablas en producción
       }),
     }),
     ServeStaticModule.forRoot({
