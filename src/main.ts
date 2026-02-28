@@ -13,7 +13,7 @@ async function bootstrap() {
   const config = new DocumentBuilder()
     .setTitle('SGA PDF API')
     .setDescription('Documentación de la API para el sistema de PDFs interactivos')
-    .setVersion('1.1')
+    .setVersion('1.2')
     .addTag('pdfs')
     .build();
   const document = SwaggerModule.createDocument(app, config);
