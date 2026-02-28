@@ -30,5 +30,5 @@ then
     pm2 start ecosystem.config.json
 else
     echo "✅ Starting with Node..."
-    npm run start:prod
+    NODE_ENV=production PORT=3003 node dist/main.js
 fi
