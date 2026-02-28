@@ -1,4 +1,5 @@
 import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { promises as fs } from 'fs';
@@ -10,6 +11,7 @@ export class AudioPointersService {
   constructor(
     @InjectRepository(AudioPointer)
     private audioPointerRepository: Repository<AudioPointer>,
+    private configService: ConfigService,
   ) {}
 
   async getPointers(pdfId: string): Promise<AudioPointer[]> {
@@ -50,7 +52,8 @@ export class AudioPointersService {
       
       await fs.writeFile(filePath, file.buffer);
       
-      const audioUrl = `http://localhost:3003/recursos/audios/${pdfId}/${fileName}`;
+      const baseUrl = this.configService.get<string>('BASE_URL', 'http://localhost:3003').replace(/\/$/, '');
+      const audioUrl = `${baseUrl}/recursos/audios/${pdfId}/${fileName}`;
 
       // Update the database record with the new audio path
       await this.audioPointerRepository.update(pointerId, {
