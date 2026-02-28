@@ -31,6 +31,13 @@ import { Pdf } from './pdfs/entities/pdf.entity';
     }),
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', 'public'), // Serve out of sga_pdf_back/public
+      serveStaticOptions: {
+        setHeaders: (res) => {
+          res.set('Access-Control-Allow-Origin', '*');
+          res.set('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS');
+          res.set('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+        },
+      },
     }),
     PdfsModule, 
     AudioPointersModule
