@@ -82,6 +82,25 @@ export class AudioPointersService {
     await this.audioPointerRepository.delete({ pdfId });
   }
 
+  /**
+   * ONE-SHOT MIGRATION: shifts all pointer x,y values by the given percentage offsets.
+   * Use to compensate for a rendering change (e.g. switching from margin-based to
+   * transform-based centering).
+   */
+  async migrateAddCenteringOffset(xDelta: number, yDelta: number): Promise<{ updated: number }> {
+    const all = await this.audioPointerRepository.find();
+    if (all.length === 0) return { updated: 0 };
+
+    const updated = all.map(p => ({
+      ...p,
+      x: Math.min(100, Math.max(0, p.x + xDelta)),
+      y: Math.min(100, Math.max(0, p.y + yDelta)),
+    }));
+
+    await this.audioPointerRepository.save(updated);
+    return { updated: updated.length };
+  }
+
   async deleteOnePointer(pdfId: string, pointerId: string): Promise<void> {
     const pointerToDelete = await this.audioPointerRepository.findOne({
       where: { id: pointerId }

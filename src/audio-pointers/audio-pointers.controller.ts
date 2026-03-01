@@ -60,5 +60,20 @@ export class AudioPointersController {
     await this.audioPointersService.deleteOnePointer(pdfId, pointerId);
     return { success: true };
   }
+
+  /**
+   * ONE-SHOT MIGRATION endpoint — call once to shift all pointer positions.
+   * xDelta / yDelta: percentage to add to each pointer's x / y (can be negative).
+   * Example: POST /audio-pointers/migrate/add-centering-offset { "xDelta": 1.41, "yDelta": 1.41 }
+   */
+  @Post('migrate/add-centering-offset')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('developer')
+  async migrateCenteringOffset(@Body() body: { xDelta: number; yDelta: number }) {
+    const xDelta = Number(body?.xDelta ?? 0);
+    const yDelta = Number(body?.yDelta ?? 0);
+    return this.audioPointersService.migrateAddCenteringOffset(xDelta, yDelta);
+  }
 }
 
