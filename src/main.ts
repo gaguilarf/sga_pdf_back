@@ -63,7 +63,7 @@ async function bootstrap() {
   const config = new DocumentBuilder()
     .setTitle('SGA PDF API')
     .setDescription('Documentación de la API para el sistema de PDFs interactivos')
-    .setVersion('1.6')
+    .setVersion('1.7')
     .addTag('pdfs')
     .addBearerAuth()
     .build();
