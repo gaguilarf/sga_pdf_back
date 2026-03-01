@@ -47,5 +47,26 @@ export class PdfsController {
   async deletePdf(@Param('id') id: string) {
     return this.pdfsService.deletePdf(id);
   }
+
+  /**
+   * Scans all pages of the PDF for disco icons and auto-creates audio pointers.
+   * WARNING: This can be slow for large PDFs (renders every page at 2x scale).
+   */
+  @Post(':id/auto-detect-pointers')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('developer')
+  async autoDetectPointers(@Param('id') id: string) {
+    // Fire-and-forget: respond immediately, run detection in background.
+    // Large PDFs can take minutes — returning early prevents browser ERR_FAILED.
+    this.pdfsService.autoDetectPointers(id).then(result => {
+      console.log(`[AutoDetect] Completed for ${id}: detected=${result.detected} saved=${result.saved}`);
+    }).catch(err => {
+      console.error(`[AutoDetect] Failed for ${id}:`, err?.message ?? err);
+    });
+
+    return { status: 'processing', message: 'Detección iniciada en segundo plano. Los punteros aparecerán cuando abras el PDF.' };
+  }
 }
+
 

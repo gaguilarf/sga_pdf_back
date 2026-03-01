@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { AudioPointersService } from '../audio-pointers/audio-pointers.service';
+import { PdfDetectionService } from '../pdf-detection/pdf-detection.service';
 import { Pdf, PdfLevel } from './entities/pdf.entity';
 
 @Injectable()
@@ -14,7 +15,8 @@ export class PdfsService {
   constructor(
     @InjectRepository(Pdf)
     private pdfRepository: Repository<Pdf>,
-    private readonly audioPointersService: AudioPointersService
+    private readonly audioPointersService: AudioPointersService,
+    private readonly pdfDetectionService: PdfDetectionService,
   ) {}
 
   async onModuleInit() {
@@ -119,5 +121,51 @@ export class PdfsService {
        if (error instanceof HttpException) throw error;
        throw new HttpException('Failed to delete PDF', HttpStatus.INTERNAL_SERVER_ERROR);
     }
+  }
+
+  /**
+   * Scans all pages of a PDF for disco icons and auto-creates AudioPointers.
+   */
+  async autoDetectPointers(id: string): Promise<{ detected: number; saved: number }> {
+    const pdf = await this.pdfRepository.findOne({ where: { id } });
+    if (!pdf) throw new HttpException('PDF not found', HttpStatus.NOT_FOUND);
+
+    const detected = await this.pdfDetectionService.detectInPdf(pdf.filename);
+
+    if (detected.length === 0) return { detected: 0, saved: 0 };
+
+    // Fetch existing pointers to avoid duplicates
+    const existing = await this.audioPointersService.getPointers(pdf.filename);
+
+    const newPointers = detected
+      .filter(d => {
+        // Skip if there is already a pointer within 2% of this position on the same page
+        return !existing.some(
+          e =>
+            e.page === d.page &&
+            Math.abs(e.x - d.x) < 2 &&
+            Math.abs(e.y - d.y) < 2,
+        );
+      })
+      .map(d => ({
+        id: crypto.randomUUID(),
+        pdfId: pdf.filename,
+        x: d.x,
+        y: d.y,
+        page: d.page,
+        audioPath: null,
+      }));
+
+    if (newPointers.length > 0) {
+      const BATCH = 200;
+      for (let i = 0; i < newPointers.length; i += BATCH) {
+        await this.audioPointersService.savePointers(
+          pdf.filename,
+          newPointers.slice(i, i + BATCH) as any,
+        );
+      }
+    }
+
+    return { detected: detected.length, saved: newPointers.length };
   }
 }

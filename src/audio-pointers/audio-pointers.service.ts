@@ -108,7 +108,6 @@ export class AudioPointersService {
     
     if (pointerToDelete?.audioPath) {
       try {
-        // Extract fileName from URL
         const fileName = pointerToDelete.audioPath.split('/').pop();
         if (fileName) {
           const filePath = path.resolve(__dirname, '..', '..', 'public', 'recursos', 'audios', pdfId, fileName);
@@ -121,4 +120,58 @@ export class AudioPointersService {
 
     await this.audioPointerRepository.delete(pointerId);
   }
+
+  /**
+   * Returns all pointers for a PDF sorted by:
+   *   page ASC → left column (x<30) by y ASC → right column (x>=30) by y ASC
+   */
+  getSortedPointers(pointers: AudioPointer[]): AudioPointer[] {
+    const pages = [...new Set(pointers.map(p => p.page))].sort((a, b) => a - b);
+    const result: AudioPointer[] = [];
+    for (const page of pages) {
+      const group = pointers.filter(p => p.page === page);
+      const left  = group.filter(p => p.x <  30).sort((a, b) => a.y - b.y);
+      const right = group.filter(p => p.x >= 30).sort((a, b) => a.y - b.y);
+      result.push(...left, ...right);
+    }
+    return result;
+  }
+
+  /**
+   * Assigns N audio files to N pointers (in the order provided).
+   * pointerIds[i] receives files[i].
+   */
+  async bulkAssignAudios(
+    pdfId: string,
+    pointerIds: string[],
+    files: Express.Multer.File[],
+  ): Promise<{ assigned: number }> {
+    if (pointerIds.length !== files.length) {
+      throw new HttpException(
+        `Mismatch: ${pointerIds.length} pointers vs ${files.length} files`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const audioDir = path.resolve(__dirname, '..', '..', 'public', 'recursos', 'audios', pdfId);
+    await fs.mkdir(audioDir, { recursive: true });
+
+    const baseUrl = this.configService.get<string>('BASE_URL', 'http://localhost:3003').replace(/\/$/, '');
+
+    for (let i = 0; i < pointerIds.length; i++) {
+      const pointerId = pointerIds[i];
+      const file      = files[i];
+      const ext       = path.extname(file.originalname) || '.mp3';
+      const fileName  = `pointer_${pointerId}${ext}`;
+      const filePath  = path.join(audioDir, fileName);
+
+      await fs.writeFile(filePath, file.buffer);
+
+      const audioUrl = `${baseUrl}/recursos/audios/${pdfId}/${fileName}`;
+      await this.audioPointerRepository.update(pointerId, { audioPath: audioUrl });
+    }
+
+    return { assigned: pointerIds.length };
+  }
 }
+

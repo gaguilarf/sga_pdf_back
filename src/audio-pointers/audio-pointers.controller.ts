@@ -1,5 +1,6 @@
-import { Controller, Get, Post, Param, Body, HttpException, HttpStatus, UploadedFile, UseInterceptors, UseGuards } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { Controller, Get, Post, Param, Body, HttpException, HttpStatus, UploadedFile, UploadedFiles, UseInterceptors, UseGuards } from '@nestjs/common';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+
 import { AudioPointersService } from './audio-pointers.service';
 import { AudioPointer } from './entities/audio-pointer.entity';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
@@ -75,5 +76,37 @@ export class AudioPointersController {
     const yDelta = Number(body?.yDelta ?? 0);
     return this.audioPointersService.migrateAddCenteringOffset(xDelta, yDelta);
   }
+
+  /**
+   * Returns all pointers for a PDF sorted by the canonical order:
+   *   page ASC → left column (x<30) by y ASC → right column (x>=30) by y ASC
+   */
+  @Get(':pdfId/sorted')
+  async getSortedPointers(@Param('pdfId') pdfId: string) {
+    if (!pdfId) throw new HttpException('pdfId is required', HttpStatus.BAD_REQUEST);
+    const all = await this.audioPointersService.getPointers(pdfId);
+    const sorted = this.audioPointersService.getSortedPointers(all);
+    return { pointers: sorted };
+  }
+
+  /**
+   * Bulk-assigns audio files to pointers in order.
+   * Body: multipart/form-data with files[] + pointerIds (JSON string array)
+   */
+  @Post(':pdfId/bulk-assign')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('developer')
+  @UseInterceptors(FilesInterceptor('files', 500, { limits: { fileSize: 50 * 1024 * 1024 } }))
+  async bulkAssignAudios(
+    @Param('pdfId') pdfId: string,
+    @UploadedFiles() files: Express.Multer.File[],
+    @Body('pointerIds') pointerIdsRaw: string,
+  ) {
+    if (!files?.length) throw new HttpException('No files uploaded', HttpStatus.BAD_REQUEST);
+    const pointerIds: string[] = JSON.parse(pointerIdsRaw);
+    return this.audioPointersService.bulkAssignAudios(pdfId, pointerIds, files);
+  }
 }
+
 

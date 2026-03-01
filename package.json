@@ -20,6 +20,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@napi-rs/canvas": "^0.1.95",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.3",
     "@nestjs/core": "^11.0.1",
@@ -33,10 +34,12 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/multer": "^2.0.0",
     "bcryptjs": "^3.0.3",
+    "jimp": "^0.22.12",
     "multer": "^2.0.2",
     "mysql2": "^3.18.2",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
+    "pdfjs-dist": "^4.10.38",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "swagger-ui-express": "^5.0.1",
