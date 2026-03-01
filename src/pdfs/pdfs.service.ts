@@ -19,6 +19,10 @@ export class PdfsService {
     private readonly pdfDetectionService: PdfDetectionService,
   ) {}
 
+  get detectionProgress$() {
+    return this.pdfDetectionService.progress$;
+  }
+
   async onModuleInit() {
     try {
       await fs.mkdir(this.uploadDir, { recursive: true });

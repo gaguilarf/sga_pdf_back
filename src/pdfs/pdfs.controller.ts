@@ -1,4 +1,4 @@
-import { Controller, Get, Post, UploadedFiles, UseInterceptors, HttpException, HttpStatus, Delete, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, UploadedFiles, UseInterceptors, HttpException, HttpStatus, Delete, Param, Body, UseGuards, Sse, MessageEvent } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { PdfsService } from './pdfs.service';
 import { PdfLevel } from './entities/pdf.entity';
@@ -6,6 +6,8 @@ import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { map } from 'rxjs/operators';
+import { Observable } from 'rxjs';
 
 @ApiTags('pdfs')
 @Controller('pdfs')
@@ -66,6 +68,13 @@ export class PdfsController {
     });
 
     return { status: 'processing', message: 'Detección iniciada en segundo plano. Los punteros aparecerán cuando abras el PDF.' };
+  }
+
+  @Sse('detection-progress')
+  detectionProgress(): Observable<MessageEvent> {
+    return this.pdfsService.detectionProgress$.pipe(
+      map(data => ({ data } as MessageEvent)),
+    );
   }
 }
 

@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, HttpStatus, HttpException, Logger } from '@nestjs/common';
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import { Subject, Observable } from 'rxjs';
 
 export interface DetectedPointer {
   x: number;
@@ -21,10 +22,20 @@ const SAVE_BATCH_SIZE = 200;     // TypeORM batch insert size
 @Injectable()
 export class PdfDetectionService {
   private readonly publicDir = path.resolve(__dirname, '..', '..', 'public');
+  private readonly logger = new Logger(PdfDetectionService.name);
 
+  /** Semaphore: allows only ONE detection job at a time to avoid OOM */
+  private _detecting = false;
   private _pdfjs: any = null;
   private _canvas: any = null;
   private _jimp: any = null;
+
+  // Real-time progress reporting
+  private readonly _progressSubject = new Subject<{ pdfId: string; page: number; total: number }>();
+
+  get progress$(): Observable<{ pdfId: string; page: number; total: number }> {
+    return this._progressSubject.asObservable();
+  }
 
   private async canvas() {
     if (!this._canvas) {
@@ -184,57 +195,100 @@ export class PdfDetectionService {
     return kept;
   }
 
-  // Main: scan all pages of a PDF for the disco template
+  // Main: scan all pages of a PDF for all disco*.png templates
   async detectInPdf(pdfFilename: string): Promise<DetectedPointer[]> {
-    const pdfPath  = path.join(this.publicDir, 'recursos', pdfFilename);
-    const tmplPath = path.join(this.publicDir, 'disco.png');
+    // ── Semaphore: reject concurrent detection jobs ──────────────────────
+    if (this._detecting) {
+      throw new (await import('@nestjs/common')).HttpException(
+        'Una detección ya está en curso. Espera a que termine antes de iniciar otra.',
+        429,
+      );
+    }
+    this._detecting = true;
 
-    const [pdfData, templateBuffer] = await Promise.all([
-      fs.readFile(pdfPath),
-      fs.readFile(tmplPath),
-    ]);
-
-    const { tmplPx, tw, th, opaqueCount } = await this.extractTemplatePixels(templateBuffer);
-
-    const lib = await this.pdfjs();
-    // Open PDF ONCE and reuse across all pages
-    const pdf = await lib.getDocument({ data: new Uint8Array(pdfData) }).promise;
-    const numPages = pdf.numPages;
-
-    console.log(`[AutoDetect] ${pdfFilename}: ${numPages} pages, template ${tw}×${th}px`);
-
-    const results: DetectedPointer[] = [];
+    const resourcesDir = path.join(this.publicDir, 'recursos');
+    const pdfPath = path.join(resourcesDir, pdfFilename);
 
     try {
-      for (let pageNum = 1; pageNum <= numPages; pageNum++) {
-        const { buffer, widthPx, heightPx } = await this.renderPage(pdf, pageNum);
-        const matches = await this.matchPage(buffer, tmplPx, tw, th, opaqueCount);
-
-        // Safety cap: if we get too many matches on a single page it means the template
-        // is matching background noise — skip the page entirely.
-        if (matches.length > MAX_MATCHES_PER_PAGE) {
-          console.log(`[AutoDetect] Page ${pageNum}: ${matches.length} matches (too many, likely noise — skipped)`);
-          continue;
-        }
-
-        for (const m of matches) {
-          results.push({
-            x: (m.x / widthPx) * 100,
-            y: (m.y / heightPx) * 100,
-            page: pageNum,
-            score: m.score,
-          });
-        }
-
-        if (matches.length > 0) {
-          console.log(`[AutoDetect] Page ${pageNum}: ${matches.length} match(es) ✓`);
-        }
+      // 1. Discover all templates (disco*.png)
+      const publicFiles = await fs.readdir(this.publicDir);
+      const templateFiles = publicFiles.filter(f => f.startsWith('disco') && f.endsWith('.png'));
+      
+      if (templateFiles.length === 0) {
+        this.logger.error('No disco*.png templates found in public directory');
+        return [];
       }
-    } finally {
-      await pdf.destroy();
-    }
 
-    console.log(`[AutoDetect] Done. Total: ${results.length} pointer(s) detected.`);
-    return results;
+      this.logger.log(`Using ${templateFiles.length} templates: ${templateFiles.join(', ')}`);
+
+      // 2. Load and pre-extract all templates
+      const templates = await Promise.all(
+        templateFiles.map(async (f) => {
+          const buf = await fs.readFile(path.join(this.publicDir, f));
+          return this.extractTemplatePixels(buf);
+        })
+      );
+
+      // 3. Load PDF
+      const pdfData = await fs.readFile(pdfPath);
+      const lib = await this.pdfjs();
+      const pdf = await lib.getDocument({ data: new Uint8Array(pdfData) }).promise;
+      const numPages = pdf.numPages;
+
+      this.logger.log(`${pdfFilename}: ${numPages} pages.`);
+
+      const results: DetectedPointer[] = [];
+
+      try {
+        for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+          // Emit progress to SSE subscribers
+          this._progressSubject.next({ pdfId: pdfFilename, page: pageNum, total: numPages });
+
+          const { buffer, widthPx, heightPx } = await this.renderPage(pdf, pageNum);
+          
+          // Multi-template matching for this page
+          let allPageMatches: Array<{ x: number; y: number; score: number }> = [];
+          
+          for (const tmpl of templates) {
+            const matches = await this.matchPage(buffer, tmpl.tmplPx, tmpl.tw, tmpl.th, tmpl.opaqueCount);
+            allPageMatches = [...allPageMatches, ...matches];
+          }
+
+          // Non-Maximum Suppression on combined results (using the smallest template radius)
+          const minRadius = Math.min(...templates.map(t => t.tw)) * NMS_RADIUS;
+          const finalPageMatches = this.nms(allPageMatches, minRadius);
+
+          if (finalPageMatches.length > MAX_MATCHES_PER_PAGE) {
+            this.logger.warn(`Page ${pageNum}: ${finalPageMatches.length} raw matches — too many, likely noise. Skipped.`);
+            continue;
+          }
+
+          for (const m of finalPageMatches) {
+            results.push({
+              x: (m.x / widthPx) * 100,
+              y: (m.y / heightPx) * 100,
+              page: pageNum,
+              score: m.score,
+            });
+          }
+
+          if (finalPageMatches.length > 0) {
+            this.logger.log(`Page ${pageNum}: ${finalPageMatches.length} match(es) ✓`);
+          }
+        }
+      } finally {
+        await pdf.destroy();
+      }
+
+      this.logger.log(`Done. Total: ${results.length} pointer(s) detected.`);
+      return results;
+
+    } catch (error) {
+      this.logger.error(`Detection failed: ${error.message}`);
+      throw error;
+    } finally {
+      // Always release the semaphore
+      this._detecting = false;
+    }
   }
 }

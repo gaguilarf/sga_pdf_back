@@ -22,8 +22,8 @@ import { UsersService } from './users/users.service';
     }),
     ThrottlerModule.forRoot([
       {
-        ttl: 60000, // 1 minuto
-        limit: 30,  // max 30 requests por minuto (global)
+        ttl: 60000,  // 1 minuto
+        limit: 100,  // 100 requests/min (público es más liviano de lo que parece)
       },
     ]),
     TypeOrmModule.forRootAsync({
@@ -37,7 +37,15 @@ import { UsersService } from './users/users.service';
         password: configService.get<string>('DB_PASS', 'brittanyDev512'),
         database: configService.get<string>('DB_NAME', 'payxiohs_ebook_brittany'),
         entities: [AudioPointer, Pdf, User],
-        synchronize: true,
+        // NEVER synchronize in production — use migrations instead
+        synchronize: configService.get<string>('NODE_ENV', 'development') !== 'production',
+        // Connection pool tuning
+        extra: {
+          connectionLimit: 10,
+        },
+        logging: configService.get<string>('NODE_ENV', 'development') === 'development'
+          ? ['error', 'warn']
+          : false,
       }),
     }),
     ServeStaticModule.forRoot({
