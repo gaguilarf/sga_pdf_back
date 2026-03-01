@@ -1,9 +1,11 @@
-import { Controller, Get, Post, Param, Body, HttpException, HttpStatus, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Controller, Get, Post, Param, Body, HttpException, HttpStatus, UploadedFile, UseInterceptors, UseGuards } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AudioPointersService } from './audio-pointers.service';
 import { AudioPointer } from './entities/audio-pointer.entity';
-
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 
 @ApiTags('audio-pointers')
 @Controller('audio-pointers')
@@ -18,6 +20,9 @@ export class AudioPointersController {
   }
 
   @Post(':pdfId')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('developer')
   async savePointers(@Param('pdfId') pdfId: string, @Body() body: { pointers: AudioPointer[] }) {
     if (!pdfId) throw new HttpException('pdfId is required', HttpStatus.BAD_REQUEST);
     if (!body || !Array.isArray(body.pointers)) {
@@ -29,6 +34,9 @@ export class AudioPointersController {
   }
 
   @Post(':pdfId/audio/:pointerId')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('developer')
   @UseInterceptors(FileInterceptor('file'))
   async uploadPointerAudio(
     @Param('pdfId') pdfId: string,
@@ -41,7 +49,10 @@ export class AudioPointersController {
     return this.audioPointersService.saveAudioFile(pdfId, pointerId, file);
   }
 
-  @Post(':pdfId/delete/:pointerId') // Using POST for easier dev-test if needed, but DELETE is better
+  @Post(':pdfId/delete/:pointerId')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('developer')
   async deletePointer(
     @Param('pdfId') pdfId: string,
     @Param('pointerId') pointerId: string,
@@ -50,3 +61,4 @@ export class AudioPointersController {
     return { success: true };
   }
 }
+

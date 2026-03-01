@@ -1,9 +1,11 @@
-import { Controller, Get, Post, UploadedFiles, UseInterceptors, HttpException, HttpStatus, Delete, Param, Body } from '@nestjs/common';
+import { Controller, Get, Post, UploadedFiles, UseInterceptors, HttpException, HttpStatus, Delete, Param, Body, UseGuards } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { PdfsService } from './pdfs.service';
 import { PdfLevel } from './entities/pdf.entity';
-
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 
 @ApiTags('pdfs')
 @Controller('pdfs')
@@ -16,6 +18,9 @@ export class PdfsController {
   }
 
   @Post('upload')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('developer')
   @UseInterceptors(FileFieldsInterceptor([
     { name: 'file', maxCount: 1 },
     { name: 'thumbnail', maxCount: 1 },
@@ -36,7 +41,11 @@ export class PdfsController {
   }
 
   @Delete(':id')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('developer')
   async deletePdf(@Param('id') id: string) {
     return this.pdfsService.deletePdf(id);
   }
 }
+
