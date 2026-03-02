@@ -3,6 +3,7 @@ import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
+import cookieParser from 'cookie-parser';
 
 const logger = new Logger('Bootstrap');
 
@@ -20,6 +21,8 @@ async function bootstrap() {
     logger: ['log', 'error', 'warn'],
   });
 
+  app.use(cookieParser());
+
   // ── Security headers (Helmet) ─────────────────────────────────────────────
   app.use(require('helmet')({
     crossOriginResourcePolicy: { policy: 'cross-origin' },
@@ -31,8 +34,12 @@ async function bootstrap() {
 
   // ── CORS ──────────────────────────────────────────────────────────────────
   app.enableCors({
-    origin: '*',
+    origin: (origin, callback) => {
+      // Allow all origins for now but enable credentials
+      callback(null, true);
+    },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    credentials: true,
   });
 
   // ── Body size limits (PDF uploads + bulk audio) ───────────────────────────
@@ -63,7 +70,7 @@ async function bootstrap() {
   const config = new DocumentBuilder()
     .setTitle('SGA PDF API')
     .setDescription('Documentación de la API para el sistema de PDFs interactivos')
-    .setVersion('1.8')
+    .setVersion('1.9')
     .addTag('pdfs')
     .addBearerAuth()
     .build();
