@@ -70,7 +70,7 @@ async function bootstrap() {
   const config = new DocumentBuilder()
     .setTitle('SGA PDF API')
     .setDescription('API para el sistema de PDFs interactivos con autenticación segura por cookies')
-    .setVersion('1.10')
+    .setVersion('1.10.1')
     .addTag('auth', 'Autenticación y Sesiones')
     .addTag('pdfs', 'Gestión de documentos PDF')
     .addBearerAuth()

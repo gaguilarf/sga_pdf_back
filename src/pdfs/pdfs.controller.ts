@@ -7,7 +7,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { map } from 'rxjs/operators';
-import { Observable } from 'rxjs';
+import { interval, merge, Observable } from 'rxjs';
 
 @ApiTags('pdfs')
 @Controller('pdfs')
@@ -73,9 +73,15 @@ export class PdfsController {
   @UseGuards(JwtAuthGuard)
   @Sse('detection-progress')
   detectionProgress(): Observable<MessageEvent> {
-    return this.pdfsService.detectionProgress$.pipe(
+    const progress$ = this.pdfsService.detectionProgress$.pipe(
       map(data => ({ data } as MessageEvent)),
     );
+
+    const heartbeat$ = interval(15000).pipe(
+      map(() => ({ data: { type: 'heartbeat' } } as MessageEvent)),
+    );
+
+    return merge(progress$, heartbeat$);
   }
 }
 
