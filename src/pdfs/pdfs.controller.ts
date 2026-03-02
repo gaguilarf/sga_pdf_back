@@ -77,7 +77,7 @@ export class PdfsController {
       map(data => ({ data } as MessageEvent)),
     );
 
-    const heartbeat$ = interval(15000).pipe(
+    const heartbeat$ = interval(10000).pipe(
       map(() => ({ data: { type: 'heartbeat' } } as MessageEvent)),
     );
 

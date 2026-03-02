@@ -14,6 +14,7 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { User } from './users/entities/user.entity';
 import { UsersService } from './users/users.service';
+import { MonitorModule } from './monitor/monitor.module';
 
 @Module({
   imports: [
@@ -54,7 +55,8 @@ import { UsersService } from './users/users.service';
         setHeaders: (res) => {
           res.set('Access-Control-Allow-Origin', '*');
           res.set('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS');
-          res.set('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+          res.set('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Range');
+          res.set('Access-Control-Expose-Headers', 'Content-Length, Content-Range, Accept-Ranges');
         },
       },
     }),
@@ -62,6 +64,7 @@ import { UsersService } from './users/users.service';
     UsersModule,
     PdfsModule,
     AudioPointersModule,
+    MonitorModule,
   ],
   controllers: [AppController],
   providers: [AppService],
