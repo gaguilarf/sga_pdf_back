@@ -14,6 +14,11 @@ export class MonitorService {
     if (this.requestDurations[endpoint].length > 100) this.requestDurations[endpoint].shift();
   }
 
+  clearStats() {
+    this.requestCounts = {};
+    this.requestDurations = {};
+  }
+
   getStats() {
     const stats: any = {};
     for (const endpoint in this.requestCounts) {
