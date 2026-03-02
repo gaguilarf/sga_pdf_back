@@ -69,9 +69,10 @@ async function bootstrap() {
   // ── Swagger ───────────────────────────────────────────────────────────────
   const config = new DocumentBuilder()
     .setTitle('SGA PDF API')
-    .setDescription('Documentación de la API para el sistema de PDFs interactivos')
-    .setVersion('1.9')
-    .addTag('pdfs')
+    .setDescription('API para el sistema de PDFs interactivos con autenticación segura por cookies')
+    .setVersion('1.10')
+    .addTag('auth', 'Autenticación y Sesiones')
+    .addTag('pdfs', 'Gestión de documentos PDF')
     .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, config);

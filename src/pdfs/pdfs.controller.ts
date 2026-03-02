@@ -70,6 +70,7 @@ export class PdfsController {
     return { status: 'processing', message: 'Detección iniciada en segundo plano. Los punteros aparecerán cuando abras el PDF.' };
   }
 
+  @UseGuards(JwtAuthGuard)
   @Sse('detection-progress')
   detectionProgress(): Observable<MessageEvent> {
     return this.pdfsService.detectionProgress$.pipe(
