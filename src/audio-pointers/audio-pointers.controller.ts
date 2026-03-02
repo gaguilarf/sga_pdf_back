@@ -104,8 +104,14 @@ export class AudioPointersController {
     @Body('pointerIds') pointerIdsRaw: string,
   ) {
     if (!files?.length) throw new HttpException('No files uploaded', HttpStatus.BAD_REQUEST);
+    
+    // Sort files by originalname to ensure deterministic order (1.mp3, 2.mp3, etc.)
+    const sortedFiles = [...files].sort((a, b) => 
+      a.originalname.localeCompare(b.originalname, undefined, { numeric: true, sensitivity: 'base' })
+    );
+
     const pointerIds: string[] = JSON.parse(pointerIdsRaw);
-    return this.audioPointersService.bulkAssignAudios(pdfId, pointerIds, files);
+    return this.audioPointersService.bulkAssignAudios(pdfId, pointerIds, sortedFiles);
   }
 }
 
